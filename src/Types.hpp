@@ -91,6 +91,14 @@ typedef struct espnow_message {
   bool d;
 } espnow_message;
 
+typedef struct espnow_message_mpg {
+  char a[32];
+  int b;
+  float c;
+  bool d;
+  int mpg1;
+} espnow_message_mpg;
+
 
 struct stepper_config_s {
   uint8_t step;

@@ -25,9 +25,9 @@
 
 /* Ethernet config and IP Addressing */
 const uint8_t mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-const IPAddress my_ip(192, 168, 111, 1); /* ESP32 Ethernet IP Address */
-const IPAddress ip_host(192, 168, 111, 2); /* LinuxCNC Ethernet adapter IP must be configured as this */
-const IPAddress gw(192, 168, 111, 254); /* Only useful if you connect ESP32 and LinuxCNC Host on same network segment with a router or another network */
+const IPAddress my_ip(192, 168, 10, 10); /* ESP32 Ethernet IP Address */
+const IPAddress ip_host(192, 168, 10, 171); /* LinuxCNC Ethernet adapter IP must be configured as this */
+const IPAddress gw(192, 168, 10, 254); /* Only useful if you connect ESP32 and LinuxCNC Host on same network segment with a router or another network */
 const IPAddress subnetmask(255, 255, 255, 0);
 
 /* Async UDP Client and Server is used to ensure bi-directional low-latency data streaming between ESP32 and LinuxCNC Host */
@@ -296,7 +296,7 @@ const struct inputPin_Config_s inputPinsConfig[7] = {
       fb_input_mask : IO_00
     },
     {
-      name : "Unused",
+      name : "Mpg1",
       udp_in_num : 1,
       pin_mode : INPUT_PULLUP,
       gpio_number : GPIO_NUM_NC, // Not connected

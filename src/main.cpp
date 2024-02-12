@@ -173,6 +173,7 @@ cmdPacket cmd = { 0 };
 fbPacket fb = { 0 };
 
 espnow_message espnowData;
+espnow_message_mpg mpgData;
 espnow_add_peer_msg espnowAddPeerMsg;
 esp_now_peer_info_t peerInfo;
 bool espnow_peer_configured = false;
@@ -542,7 +543,15 @@ void espnowOnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
         // Serial.print("Bool: ");
         // Serial.println(espnowData.d);
         // Serial.println();
+    } else if(len == sizeof(mpgData)){
+        memcpy(&mpgData,incomingData,sizeof(mpgData));
+        const struct inputPin_Config_s *pin_config = &inputPinsConfig[1];
+        int registerBitState = (int)REG_GET_BIT(pin_config->register_address, pin_config->register_bit);
+        //pin_config.register_bit = mpgData.mpg1;
+        registerBitState = mpgData.mpg1;
+        Serial.printf("%i mpg was: %i \n",len,mpgData.mpg1);
     }
+
 }
 
 void WiFiEvent(WiFiEvent_t event) 
