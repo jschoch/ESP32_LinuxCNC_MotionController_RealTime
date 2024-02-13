@@ -545,10 +545,8 @@ void espnowOnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
         // Serial.println();
     } else if(len == sizeof(mpgData)){
         memcpy(&mpgData,incomingData,sizeof(mpgData));
-        const struct inputPin_Config_s *pin_config = &inputPinsConfig[1];
-        int registerBitState = (int)REG_GET_BIT(pin_config->register_address, pin_config->register_bit);
-        //pin_config.register_bit = mpgData.mpg1;
-        registerBitState = mpgData.mpg1;
+        fb.mpg1 = mpgData.mpg1;
+        xEventGroupSetBits(xEventUDPPacketStateGroup, UDP_SEND_PACKET_BIT);
         Serial.printf("%i mpg was: %i \n",len,mpgData.mpg1);
     }
 

@@ -78,6 +78,7 @@ struct fbPacket {
     volatile int32_t pos[MAX_STEPPER];
     volatile int32_t vel[MAX_STEPPER];
     uint32_t udp_seq_num;
+    int mpg1;
 };
 
 typedef struct espnow_add_peer_msg {
