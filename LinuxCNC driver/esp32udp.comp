@@ -39,6 +39,7 @@ pin out bit     ready               = 0     "Module state";
 pin in  bit     enable              = 0     "Module enable";
 pin out bit     connected           = 0     "Net comms connected";
 pin out s32     packets_lost_tx     = 0     "Lost packets TX";
+pin out s32 mpg = 0 " ";
 pin out s32     last_pkt_rx_time_ms  = 0     "Last Packet RX Time ms";
 pin out s32     udp_seq_number      = 0     "UDP Seqence Number";
 pin out s32     send_pkt      = 0     "UDP Send Pkt";
@@ -75,13 +76,16 @@ license "GPL"; // indicates GPL v2 or later
 
 //#define MAX_STEPPER   3
 
+/*
 struct FB {
     uint8_t control;
     uint8_t io;
     int32_t pos[6];
     int32_t   vel[6];
     int32_t udpseqnumber;
+    int32_t mpg_1;
 } fb = { 0 };
+*/
 
 struct CMD {
     uint8_t control;
@@ -93,6 +97,43 @@ struct CMD {
     uint16_t feedrateoverride;
 } cmd = { 0 };
 
+#define NUM_HID 2
+
+typedef struct {
+    int8_t id;
+    union {
+        int8_t analog_value;
+        int32_t s32_value;
+    };
+} hid_t;
+
+typedef struct {
+    uint8_t control;
+    uint8_t io;
+    int32_t pos[6];
+    int32_t   vel[6];
+    int32_t udpseqnumber;
+} fbPacket;
+
+
+typedef union{
+    struct {
+        uint8_t data_type;
+        uint16_t data_length;
+        fbPacket fb; 
+    } feedbackPacket;
+
+    struct {
+        uint8_t data_type;
+        uint16_t data_length;
+        int8_t num_hid;
+        hid_t devices[NUM_HID];
+    } hid;
+} udp_rx_t;
+
+udp_rx_t udpp = { 0 };
+udp_rx_t hids = { 0 };
+fbPacket fb = { 0 };
 struct CMD prev_cmd = { 0 };
 struct CMD cache_cmd = { 0 };
 
@@ -117,7 +158,7 @@ struct CMD cache_cmd = { 0 };
 #define SEND_TIMEOUT_US 100
 #define RECV_TIMEOUT_US 100
 
-#define REMOTE_IP "192.168.111.1"
+#define REMOTE_IP "192.168.10.10"
 #define REMOTE_UDP_PORT 58427
 #define LOCAL_UDP_PORT 58428
 
@@ -190,7 +231,7 @@ EXTRA_CLEANUP()
 FUNCTION(udp_receive)
 {
     
-    rx = recv(sockrxfd, rxbuf, sizeof(fb), 0);
+    rx = recv(sockrxfd, rxbuf, sizeof(udp_rx_t), 0);
     if (rx < 0) {
         last_pkt_rx_time_ms++;
         if (last_pkt_rx_time_ms > 200 && connected && ready) {
@@ -201,30 +242,44 @@ FUNCTION(udp_receive)
     } else {
         last_pkt_rx_time_ms = 0;
         
-        memcpy(&fb, &rxbuf, sizeof(fb));
-        for (int i = 0; i < num_motors; i++) {
-            _position_fb(i) = fb.pos[i] / (float)_scale(i);
-            _velocity_fb(i) = (float)(fb.vel[i]/1000) / (float)_scale(i);
-            if (cmd.pos[i] != fb.pos[i]) {
-                send_pkt++;
+        memcpy(&udpp, &rxbuf, sizeof(udp_rx_t));
+        rtapi_print("%i ",udpp.feedbackPacket.data_type);
+        //rtapi_print_msg(RTAPI_MSG_ERR, "dood %i",udpp.feedbackPacket.data_type);
+        //*(fb) = udpp.feedbackPacket.fp;
+        if(udpp.feedbackPacket.data_type == 0){
+            rtapi_print(" #%i#",udpp.feedbackPacket.fb.control);
+            fb = udpp.feedbackPacket.fb;
+            for (int i = 0; i < num_motors; i++) {
+                _position_fb(i) = fb.pos[i] / (float)_scale(i);
+                _velocity_fb(i) = (float)(fb.vel[i]/1000) / (float)_scale(i);
+                if (cmd.pos[i] != fb.pos[i]) {
+                    send_pkt++;
+                }
             }
+        
+
+            memcpy(&prev_cmd, &cmd, sizeof(cmd));
+
+            in(0) = fb.io & IO_00;
+            in(1) = fb.io & IO_01;
+            in(2) = fb.io & IO_02;
+            in(3) = fb.io & IO_03;
+            in(4) = fb.io & IO_04;
+            in(5) = fb.io & IO_05;
+            in(6) = fb.io & IO_06;
+            in(7) = fb.io & IO_07;
+            ready = fb.control & CTRL_READY;
+            udp_seq_number = fb.udpseqnumber;
+            //mpg = fb.mpg_1;
+            connected = 1;
+            send_pkt--;
+        }else if(udpp.hid.data_type = 1){
+            // TODO: enumerate based on udpp.hid.num_hid
+            rtapi_print(" -%i- ",udpp.hid.devices[0].s32_value);
+            mpg = udpp.hid.devices[0].s32_value;
+        } else{
+            rtapi_print("?");
         }
-    
-
-        memcpy(&prev_cmd, &cmd, sizeof(cmd));
-
-        in(0) = fb.io & IO_00;
-        in(1) = fb.io & IO_01;
-        in(2) = fb.io & IO_02;
-        in(3) = fb.io & IO_03;
-        in(4) = fb.io & IO_04;
-        in(5) = fb.io & IO_05;
-        in(6) = fb.io & IO_06;
-        in(7) = fb.io & IO_07;
-        ready = fb.control & CTRL_READY;
-        udp_seq_number = fb.udpseqnumber;
-        connected = 1;
-        send_pkt--;
     }
 
 }
@@ -251,6 +306,8 @@ FUNCTION(_)
         do_state_restore = true;
         last_pkt_rx_time_ms = 0;
         packets_lost_tx = 0;
+        // TODO reset this on enable?
+        //mpgo = 0;
         send_pkt++;
         prev_enable_status = enable;
     }
