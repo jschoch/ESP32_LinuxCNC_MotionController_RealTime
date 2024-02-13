@@ -2,3 +2,14 @@ install linuxcnc-uspace-dev
 install build-essential
 
 halcompile --install esp32udp.comp
+
+
+# mpg
+
+Add a signal "feed_ov" and map the UI feed override to a MPG
+
+```
+
+net feed_ov esp32udp.mpg => halui.feed-override.counts
+
+```
