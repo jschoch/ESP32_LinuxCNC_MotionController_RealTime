@@ -170,7 +170,12 @@ volatile uint32_t udp_rx_seq_num = 0;
 uint8_t inputPinInterruptFired[MAX_INPUTS] = { 0 };
 
 cmdPacket cmd = { 0 };
-fbPacket fb = { 0 };
+fbPacket fb = { 0};
+udp_tx_t fbp = { 0 };
+//fbp.feedbackPacket.fb = &fb;
+//udp_tx_t fbp = { .feedbackPacket.fb = &fb};
+//fbp.feedbackPacket.fb = &fb;
+udp_tx_t hids = { 0 };
 
 espnow_message espnowData;
 espnow_message_mpg mpgData;
@@ -545,8 +550,11 @@ void espnowOnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
         // Serial.println();
     } else if(len == sizeof(mpgData)){
         memcpy(&mpgData,incomingData,sizeof(mpgData));
-        fb.mpg1 = mpgData.mpg1;
-        xEventGroupSetBits(xEventUDPPacketStateGroup, UDP_SEND_PACKET_BIT);
+        hids.hid.data_type = 1;
+        hids.hid.num_hid = NUM_HID;
+        hids.hid.devices[0].id = 0;
+        hids.hid.devices[0].s32_value = mpgData.mpg1;
+        xEventGroupSetBits(xEventUDPPacketStateGroup, UDP_SEND_HID_PACKET_BIT);
         Serial.printf("%i mpg was: %i \n",len,mpgData.mpg1);
     }
 
@@ -596,17 +604,29 @@ void WiFiEvent(WiFiEvent_t event)
 
 
 /*==================================================================*/
-size_t IRAM_ATTR sendUDPFeedbackPacket() 
+size_t IRAM_ATTR sendUDPFeedbackPacket(int udp_type) 
 {
     bool result = true;
     fb.udp_seq_num++;
-    memcpy(&packetBufferTx, &fb, sizeof(fb));
-    size_t res = udpClient.write(packetBufferTx, sizeof(fb));
+    size_t res;
+
     if (res != sizeof(fb)) {
+
         udpPacketTxErrors++;
     }
     
-    memset(packetBufferTx, 0, sizeof(packetBufferTx));
+    if(udp_type == 0){
+        fbp.feedbackPacket.fb = fb;
+        memcpy(&packetBufferTx, &fbp, sizeof(fbp));
+        res = udpClient.write(packetBufferTx, sizeof(fbp));
+
+        memset(packetBufferTx, 0, sizeof(packetBufferTx));
+    }else if(udp_type = 1){
+        memcpy(&packetBufferTx, &hids, sizeof(hids));
+        res = udpClient.write(packetBufferTx, sizeof(hids));
+
+    }
+
     
     udp_tx_seq_num++;
     
@@ -662,9 +682,15 @@ void IRAM_ATTR loop_Core0_UDPSendTask(void* parameter)
 
         if (( xEventGroupValue & ( UDP_SEND_PACKET_BIT ) ) == ( UDP_SEND_PACKET_BIT )) /* If UDP Packet TX bit is set */
         {
-            sendUDPFeedbackPacket();
+            sendUDPFeedbackPacket(0);
             xEventGroupClearBits(xEventUDPPacketStateGroup, UDP_SEND_PACKET_BIT);
         }
+        if (( xEventGroupValue & ( UDP_SEND_HID_PACKET_BIT ) ) == ( UDP_SEND_HID_PACKET_BIT )) /* If UDP Packet TX bit is set */
+        {
+            sendUDPFeedbackPacket(1);
+            xEventGroupClearBits(xEventUDPPacketStateGroup, UDP_SEND_HID_PACKET_BIT);
+        }
+        
         
         //vTaskDelay(1);
     }
@@ -1401,6 +1427,9 @@ void setup()
     logMessage("Version: %s\r\n", version_number);
     logMessage("Setup started..\r\n");
     logMessage("APBFreq: %d\r\n", getApbFrequency());
+
+    fbp.feedbackPacket.data_type = 0;
+    //fbp.feedbackPacket.fb = &fb;
 
     if (!setupMotors()){
         logMessage("**Error** setting up motors. Check motor pin mappings, input pin interrupt assignments and output pins do not overlap any motor pins\r\n");
